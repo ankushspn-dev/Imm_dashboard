@@ -429,6 +429,18 @@
         let showUwinPercentSymbol = true;
         let showCompPercentSymbol = true;
 
+        function updateToggleBtnStyle(btnId, isOn) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (isOn) {
+                btn.classList.remove('bg-amber-100', 'border-amber-300', 'text-amber-800');
+                btn.classList.add('bg-slate-100', 'border-slate-300', 'text-slate-700');
+            } else {
+                btn.classList.remove('bg-slate-100', 'border-slate-300', 'text-slate-700');
+                btn.classList.add('bg-amber-100', 'border-amber-300', 'text-amber-800');
+            }
+        }
+
         function openExportModal(type) {
             pendingExportType = type;
             document.querySelectorAll('.modal-category-checkbox').forEach(cb => {
@@ -475,6 +487,7 @@
             showTable1PercentSymbol = !showTable1PercentSymbol;
             const btnText = document.getElementById('t1PctToggleBtnText');
             if (btnText) btnText.textContent = showTable1PercentSymbol ? "Show % Symbol: ON" : "Show % Symbol: OFF";
+            updateToggleBtnStyle('t1PctToggleBtn', showTable1PercentSymbol);
             renderTable(getFilteredData());
         }
 
@@ -482,6 +495,7 @@
             showNfhsPercentSymbol = !showNfhsPercentSymbol;
             const btnText = document.getElementById('t3PctToggleBtnText');
             if (btnText) btnText.textContent = showNfhsPercentSymbol ? "Show % Symbol: ON" : "Show % Symbol: OFF";
+            updateToggleBtnStyle('t3PctToggleBtn', showNfhsPercentSymbol);
             renderNfhsTable(getFilteredData());
         }
 
@@ -489,7 +503,16 @@
             showUwinPercentSymbol = !showUwinPercentSymbol;
             const btnText = document.getElementById('t4PctToggleBtnText');
             if (btnText) btnText.textContent = showUwinPercentSymbol ? "Show % Symbol: ON" : "Show % Symbol: OFF";
+            updateToggleBtnStyle('t4PctToggleBtn', showUwinPercentSymbol);
             renderUwinTable(getFilteredData());
+        }
+
+        function toggleCompPercentSymbol() {
+            showCompPercentSymbol = !showCompPercentSymbol;
+            const btnText = document.getElementById('pctToggleBtnText');
+            if (btnText) btnText.textContent = showCompPercentSymbol ? "Show % Symbol: ON" : "Show % Symbol: OFF";
+            updateToggleBtnStyle('pctToggleBtn', showCompPercentSymbol);
+            renderComparisonTable(getFilteredData());
         }
 
         window.onload = function() {
@@ -608,13 +631,6 @@
             tr1 += '</tr>';
             tr2 += '</tr>';
             thead.innerHTML = tr1 + tr2;
-        }
-
-        function toggleCompPercentSymbol() {
-            showCompPercentSymbol = !showCompPercentSymbol;
-            const btnText = document.getElementById('pctToggleBtnText');
-            if (btnText) btnText.textContent = showCompPercentSymbol ? "Show % Symbol: ON" : "Show % Symbol: OFF";
-            renderComparisonTable(getFilteredData());
         }
 
         function renderComparisonTable(data) {
