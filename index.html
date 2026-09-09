@@ -143,18 +143,26 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-4">
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">DATA SOURCE COMPARISON</label>
-                    <div class="inline-flex items-center gap-3 bg-slate-50/90 px-3 py-1.5 rounded-2xl border border-slate-200/90 shadow-sm">
+                    <div class="inline-flex flex-wrap items-center gap-3 bg-slate-50/90 px-3 py-1.5 rounded-2xl border border-slate-200/90 shadow-sm">
                         <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
                             <input type="radio" name="compareToggle" value="NONE" checked onchange="onIndicatorChange()" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
                             <span>HMIS Only</span>
                         </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700">
-                            <input type="radio" name="compareToggle" value="NFHS" onchange="onIndicatorChange()" class="w-4 h-4 text-purple-600 focus:ring-purple-500">
-                            <span>Compare with NFHS-6</span>
-                        </label>
                         <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-700">
-                            <input type="radio" name="compareToggle" value="UWIN" onchange="onIndicatorChange()" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                            <span>Compare with UWIN</span>
+                            <input type="radio" name="compareToggle" value="UWIN_ONLY" onchange="onIndicatorChange()" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span>UWIN Only</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-purple-700">
+                            <input type="radio" name="compareToggle" value="NFHS" onchange="onIndicatorChange()" class="w-4 h-4 text-purple-600 focus:ring-purple-500">
+                            <span>HMIS vs NFHS-6</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-blue-800">
+                            <input type="radio" name="compareToggle" value="UWIN" onchange="onIndicatorChange()" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                            <span>HMIS vs U-WIN</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-teal-800">
+                            <input type="radio" name="compareToggle" value="UWIN_VS_NFHS" onchange="onIndicatorChange()" class="w-4 h-4 text-teal-600 focus:ring-teal-500">
+                            <span>U-WIN vs NFHS-6</span>
                         </label>
                     </div>
                 </div>
@@ -171,11 +179,21 @@
                     <h2 id="chartTitle" class="text-lg font-bold text-slate-800 tracking-tight">Selected Immunization Indicators Coverage (%)</h2>
                     <p id="chartSub" class="text-xs font-medium text-slate-400 mt-1">Showing National Average across selected indicators</p>
                 </div>
-                <div class="flex flex-col items-start md:items-end">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">CHART INDICATOR FOCUS</label>
-                    <select id="indicatorFilter" onchange="onIndicatorChange()" class="bg-slate-50/90 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 min-w-[160px] w-40 font-bold shadow-sm focus:ring-blue-500 focus:border-blue-500 truncate">
-                        <option value="ALL">All Immunization Indicators (Summary)</option>
-                    </select>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">CHART SORT ORDER</label>
+                        <select id="chartSortOrder" onchange="onIndicatorChange()" class="bg-slate-50/90 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 w-36 font-bold shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="DEFAULT">Default (A-Z)</option>
+                            <option value="ASC">Ascending (&uarr;)</option>
+                            <option value="DESC">Descending (&darr;)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">CHART INDICATOR FOCUS</label>
+                        <select id="indicatorFilter" onchange="onIndicatorChange()" class="bg-slate-50/90 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 min-w-[160px] w-40 font-bold shadow-sm focus:ring-blue-500 focus:border-blue-500 truncate">
+                            <option value="ALL">All Immunization Indicators (Summary)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -742,23 +760,23 @@
             if (mainChartInst) mainChartInst.destroy();
 
             const compareMode = document.querySelector('input[name="compareToggle"]:checked').value;
+            const sortOrder = document.getElementById('chartSortOrder').value;
 
-            let labels = [];
+            let rawLabels = [];
             let datasetHMIS = [];
             let datasetComp = [];
             let chartTitleStr = "";
             let chartSubStr = "";
 
             if (indVal === 'ALL') {
-                labels = activeIndicators;
-                datasetHMIS = activeIndicators.map(k => parseFloat((aggregateCov[k] || 0).toFixed(1)));
+                rawLabels = [...activeIndicators];
                 
-                datasetComp = activeIndicators.map(k => {
-                    if (compareMode === 'NFHS') {
-                        return stateVal === 'ALL'
-                            ? ((nfhsNationalData && nfhsNationalData[k] !== undefined) ? nfhsNationalData[k] : null)
-                            : ((nfhsStateData && nfhsStateData[stateVal] && nfhsStateData[stateVal][k] !== undefined) ? nfhsStateData[stateVal][k] : null);
-                    } else if (compareMode === 'UWIN') {
+                // Primary HMIS coverage
+                datasetHMIS = rawLabels.map(k => parseFloat((aggregateCov[k] || 0).toFixed(1)));
+                
+                // Comparison or UWIN dataset
+                datasetComp = rawLabels.map(k => {
+                    if (compareMode === 'UWIN_ONLY' || compareMode === 'UWIN' || compareMode === 'UWIN_VS_NFHS') {
                         let sumDoses = 0, sumDen = 0;
                         const seenD = new Set();
                         data.forEach(d => {
@@ -771,15 +789,21 @@
                             }
                         });
                         return sumDen > 0 ? parseFloat(((sumDoses / sumDen) * 100).toFixed(1)) : null;
+                    } else if (compareMode === 'NFHS') {
+                        return stateVal === 'ALL'
+                            ? ((nfhsNationalData && nfhsNationalData[k] !== undefined) ? nfhsNationalData[k] : null)
+                            : ((nfhsStateData && nfhsStateData[stateVal] && nfhsStateData[stateVal][k] !== undefined) ? nfhsStateData[stateVal][k] : null);
                     }
                     return null;
                 });
 
                 chartTitleStr = stateVal === 'ALL' ? "All Immunization Indicators Coverage (%) — National View" : "All Immunization Indicators Coverage (%) — " + stateVal;
-                if (compareMode !== 'NONE') {
-                    chartTitleStr += " (HMIS vs " + (compareMode === 'NFHS' ? 'NFHS-6' : 'UWIN') + ")";
-                }
-                chartSubStr = "Showing overall HMIS performance across all indicators for " + (stateVal === 'ALL' ? 'All India' : stateVal);
+                if (compareMode === 'UWIN_ONLY') chartTitleStr += " (U-WIN Only)";
+                else if (compareMode === 'NFHS') chartTitleStr += " (HMIS vs NFHS-6)";
+                else if (compareMode === 'UWIN') chartTitleStr += " (HMIS vs U-WIN)";
+                else if (compareMode === 'UWIN_VS_NFHS') chartTitleStr += " (U-WIN vs NFHS-6)";
+                
+                chartSubStr = "Showing overall " + ((compareMode === 'UWIN_ONLY' || compareMode === 'UWIN_VS_NFHS') ? 'U-WIN' : 'HMIS') + " performance across all indicators for " + (stateVal === 'ALL' ? 'All India' : stateVal);
             } else {
                 const isNationwide = stateVal === 'ALL';
                 const isJE = indVal === 'JE-1' || indVal === 'JE-2';
@@ -815,29 +839,56 @@
                         }
                     });
 
-                    labels = Object.keys(stateMap).sort();
-                    datasetHMIS = labels.map(st => {
+                    rawLabels = Object.keys(stateMap).sort();
+                    datasetHMIS = rawLabels.map(st => {
                         const item = stateMap[st];
                         if (isJE && !item.hasJE) return null;
                         return item.den > 0 ? parseFloat(((item.num / item.den) * 100).toFixed(1)) : null;
                     });
 
-                    datasetComp = labels.map(st => {
+                    datasetComp = rawLabels.map(st => {
                         const item = stateMap[st];
-                        if (compareMode === 'NFHS') {
+                        if (compareMode === 'UWIN_ONLY' || compareMode === 'UWIN' || compareMode === 'UWIN_VS_NFHS') {
+                            if (isJE && !item.hasJE) return null;
+                            return item.uwinDen > 0 ? parseFloat(((item.uwinSum / item.uwinDen) * 100).toFixed(1)) : null;
+                        } else if (compareMode === 'NFHS') {
                             if (nfhsStateData && nfhsStateData[st] && nfhsStateData[st][indVal] !== undefined && nfhsStateData[st][indVal] !== null) {
                                 return nfhsStateData[st][indVal];
                             }
                             return item.nfhsCount > 0 ? parseFloat((item.nfhsSum / item.nfhsCount).toFixed(1)) : null;
-                        } else if (compareMode === 'UWIN') {
-                            if (isJE && !item.hasJE) return null;
-                            return item.uwinDen > 0 ? parseFloat(((item.uwinSum / item.uwinDen) * 100).toFixed(1)) : null;
                         }
                         return null;
                     });
 
                     let headerCovStr = stateCovStr;
-                    if (compareMode !== 'NONE') {
+                    if (compareMode === 'UWIN_ONLY') {
+                        let totUD = 0, totUDen = 0;
+                        const seenD = new Set();
+                        data.forEach(d => {
+                            const dKey = d.State + "||" + d.District;
+                            totUD += Number(d.UWIN_Doses ? d.UWIN_Doses[indVal] : 0) || 0;
+                            if (!seenD.has(dKey)) {
+                                totUDen += Number(getDenominator(indVal, d)) || 0;
+                                seenD.add(dKey);
+                            }
+                        });
+                        const compNatVal = totUDen > 0 ? ((totUD / totUDen) * 100).toFixed(1) + '%' : 'NA';
+                        headerCovStr = `<span style="color:#059669; font-weight:700;">U-WIN: ${compNatVal}</span>`;
+                    } else if (compareMode === 'UWIN_VS_NFHS') {
+                        let totUD = 0, totUDen = 0;
+                        const seenD = new Set();
+                        data.forEach(d => {
+                            const dKey = d.State + "||" + d.District;
+                            totUD += Number(d.UWIN_Doses ? d.UWIN_Doses[indVal] : 0) || 0;
+                            if (!seenD.has(dKey)) {
+                                totUDen += Number(getDenominator(indVal, d)) || 0;
+                                seenD.add(dKey);
+                            }
+                        });
+                        const uwinNatVal = totUDen > 0 ? ((totUD / totUDen) * 100).toFixed(1) + '%' : 'NA';
+                        const nfhsNatVal = (nfhsNationalData && nfhsNationalData[indVal] !== undefined && nfhsNationalData[indVal] !== null) ? nfhsNationalData[indVal] + '%' : 'NA';
+                        headerCovStr = `<span style="color:#059669; font-weight:700;">U-WIN: ${uwinNatVal}</span> | <span style="color:#ea580c; font-weight:700;">NFHS-6: ${nfhsNatVal}</span>`;
+                    } else if (compareMode !== 'NONE') {
                         let compNatVal = 'NA';
                         if (compareMode === 'NFHS') {
                             compNatVal = (nfhsNationalData && nfhsNationalData[indVal] !== undefined && nfhsNationalData[indVal] !== null) ? nfhsNationalData[indVal] + '%' : 'NA';
@@ -862,7 +913,7 @@
                     chartTitleStr = "State-Wise Performance Comparison — " + indVal + " Coverage (" + headerCovStr + ")";
                     chartSubStr = "Showing " + indVal + " performance across all States/UTs";
                 } else {
-                    labels = data.map(d => d.District);
+                    rawLabels = data.map(d => d.District);
                     datasetHMIS = data.map(d => {
                         if (isJE && !d.Is_JE_Endemic) return null;
                         const denVal = getDenominator(indVal, d);
@@ -870,17 +921,48 @@
                     });
 
                     datasetComp = data.map(d => {
-                        if (compareMode === 'NFHS') {
-                            return (d.NFHS6 && d.NFHS6[indVal] !== undefined) ? d.NFHS6[indVal] : null;
-                        } else if (compareMode === 'UWIN') {
+                        if (compareMode === 'UWIN_ONLY' || compareMode === 'UWIN' || compareMode === 'UWIN_VS_NFHS') {
                             if (isJE && !d.Is_JE_Endemic) return null;
                             return getUwinCoveragePct(indVal, d);
+                        } else if (compareMode === 'NFHS') {
+                            return (d.NFHS6 && d.NFHS6[indVal] !== undefined) ? d.NFHS6[indVal] : null;
                         }
                         return null;
                     });
 
                     let headerCovStr = stateCovStr;
-                    if (compareMode !== 'NONE') {
+                    if (compareMode === 'UWIN_ONLY') {
+                        let totUD = 0, totUDen = 0;
+                        const seenD = new Set();
+                        data.forEach(d => {
+                            const dKey = d.State + "||" + d.District;
+                            totUD += Number(d.UWIN_Doses ? d.UWIN_Doses[indVal] : 0) || 0;
+                            if (!seenD.has(dKey)) {
+                                totUDen += Number(getDenominator(indVal, d)) || 0;
+                                seenD.add(dKey);
+                            }
+                        });
+                        const compStVal = totUDen > 0 ? ((totUD / totUDen) * 100).toFixed(1) + '%' : 'NA';
+                        headerCovStr = `<span style="color:#059669; font-weight:700;">U-WIN: ${compStVal}</span>`;
+                    } else if (compareMode === 'UWIN_VS_NFHS') {
+                        let totUD = 0, totUDen = 0;
+                        const seenD = new Set();
+                        data.forEach(d => {
+                            const dKey = d.State + "||" + d.District;
+                            totUD += Number(d.UWIN_Doses ? d.UWIN_Doses[indVal] : 0) || 0;
+                            if (!seenD.has(dKey)) {
+                                totUDen += Number(getDenominator(indVal, d)) || 0;
+                                seenD.add(dKey);
+                            }
+                        });
+                        const uwinStVal = totUDen > 0 ? ((totUD / totUDen) * 100).toFixed(1) + '%' : 'NA';
+                        let nfhsStVal = (nfhsStateData && nfhsStateData[stateVal] && nfhsStateData[stateVal][indVal] !== undefined && nfhsStateData[stateVal][indVal] !== null) ? nfhsStateData[stateVal][indVal] + '%' : null;
+                        if (!nfhsStVal) {
+                            let validComp = datasetComp.filter(v => v !== null && v !== undefined);
+                            nfhsStVal = validComp.length > 0 ? (validComp.reduce((a,b)=>a+b,0)/validComp.length).toFixed(1) + '%' : 'NA';
+                        }
+                        headerCovStr = `<span style="color:#059669; font-weight:700;">U-WIN: ${uwinStVal}</span> | <span style="color:#ea580c; font-weight:700;">NFHS-6: ${nfhsStVal}</span>`;
+                    } else if (compareMode !== 'NONE') {
                         let compStVal = 'NA';
                         if (compareMode === 'NFHS') {
                             compStVal = (nfhsStateData && nfhsStateData[stateVal] && nfhsStateData[stateVal][indVal] !== undefined && nfhsStateData[stateVal][indVal] !== null) ? nfhsStateData[stateVal][indVal] + '%' : null;
@@ -911,33 +993,122 @@
                 }
             }
 
+            // APPLIED SORTING LOGIC BASED ON USER SELECTION (ASC / DESC / DEFAULT)
+            let labels = [];
+            let sortedHMIS = [];
+            let sortedComp = [];
+            let sortedNFHS = [];
+
+            if (compareMode === 'UWIN_VS_NFHS') {
+                // For UWIN VS NFHS, get NFHS dataset specifically
+                const rawNFHS = rawLabels.map((lbl, idx) => {
+                    if (indVal === 'ALL') {
+                        return stateVal === 'ALL'
+                            ? ((nfhsNationalData && nfhsNationalData[lbl] !== undefined) ? nfhsNationalData[lbl] : null)
+                            : ((nfhsStateData && nfhsStateData[stateVal] && nfhsStateData[stateVal][lbl] !== undefined) ? nfhsStateData[stateVal][lbl] : null);
+                    } else if (stateVal === 'ALL') {
+                        return (nfhsStateData && nfhsStateData[lbl] && nfhsStateData[lbl][indVal] !== undefined && nfhsStateData[lbl][indVal] !== null) ? nfhsStateData[lbl][indVal] : null;
+                    } else {
+                        return (data[idx] && data[idx].NFHS6 && data[idx].NFHS6[indVal] !== undefined) ? data[idx].NFHS6[indVal] : null;
+                    }
+                });
+
+                if (sortOrder !== 'DEFAULT') {
+                    const combinedIndices = rawLabels.map((lbl, idx) => {
+                        const primaryVal = datasetComp[idx] !== null ? datasetComp[idx] : -1; // Primary is UWIN
+                        return { label: lbl, uwin: datasetComp[idx], nfhs: rawNFHS[idx], val: primaryVal };
+                    });
+
+                    combinedIndices.sort((a, b) => sortOrder === 'ASC' ? a.val - b.val : b.val - a.val);
+
+                    labels = combinedIndices.map(i => i.label);
+                    sortedComp = combinedIndices.map(i => i.uwin);
+                    sortedNFHS = combinedIndices.map(i => i.nfhs);
+                } else {
+                    labels = rawLabels;
+                    sortedComp = datasetComp;
+                    sortedNFHS = rawNFHS;
+                }
+            } else if (sortOrder !== 'DEFAULT') {
+                const combinedIndices = rawLabels.map((lbl, idx) => {
+                    const primaryVal = (compareMode === 'UWIN_ONLY') 
+                        ? (datasetComp[idx] !== null ? datasetComp[idx] : -1) 
+                        : (datasetHMIS[idx] !== null ? datasetHMIS[idx] : -1);
+                    return { label: lbl, hmis: datasetHMIS[idx], comp: datasetComp[idx], val: primaryVal };
+                });
+
+                combinedIndices.sort((a, b) => sortOrder === 'ASC' ? a.val - b.val : b.val - a.val);
+
+                labels = combinedIndices.map(i => i.label);
+                sortedHMIS = combinedIndices.map(i => i.hmis);
+                sortedComp = combinedIndices.map(i => i.comp);
+            } else {
+                labels = rawLabels;
+                sortedHMIS = datasetHMIS;
+                sortedComp = datasetComp;
+            }
+
             document.getElementById('chartTitle').innerHTML = chartTitleStr;
             document.getElementById('chartSub').textContent = chartSubStr;
 
-            const chartDatasets = [{
-                label: 'HMIS Coverage (%)',
-                data: datasetHMIS,
-                backgroundColor: '#3b82f6',
-                borderColor: '#2563eb',
-                borderWidth: 1,
-                borderRadius: 4,
-                maxBarThickness: 45
-            }];
+            const chartDatasets = [];
 
-            if (compareMode !== 'NONE') {
-                const compLabel = compareMode === 'NFHS' ? 'NFHS-6 Coverage (%)' : 'UWIN Coverage (%)';
-                const compBg = compareMode === 'NFHS' ? '#f97316' : '#10b981';
-                const compBorder = compareMode === 'NFHS' ? '#ea580c' : '#059669';
-
+            if (compareMode === 'UWIN_ONLY') {
                 chartDatasets.push({
-                    label: compLabel,
-                    data: datasetComp,
-                    backgroundColor: compBg,
-                    borderColor: compBorder,
+                    label: 'UWIN Coverage (%)',
+                    data: sortedComp,
+                    backgroundColor: '#10b981',
+                    borderColor: '#059669',
                     borderWidth: 1,
                     borderRadius: 4,
                     maxBarThickness: 45
                 });
+            } else if (compareMode === 'UWIN_VS_NFHS') {
+                chartDatasets.push({
+                    label: 'UWIN Coverage (%)',
+                    data: sortedComp,
+                    backgroundColor: '#10b981',
+                    borderColor: '#059669',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 45
+                });
+
+                chartDatasets.push({
+                    label: 'NFHS-6 Coverage (%)',
+                    data: sortedNFHS,
+                    backgroundColor: '#f97316',
+                    borderColor: '#ea580c',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 45
+                });
+            } else {
+                chartDatasets.push({
+                    label: 'HMIS Coverage (%)',
+                    data: sortedHMIS,
+                    backgroundColor: '#3b82f6',
+                    borderColor: '#2563eb',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 45
+                });
+
+                if (compareMode !== 'NONE') {
+                    const compLabel = compareMode === 'NFHS' ? 'NFHS-6 Coverage (%)' : 'UWIN Coverage (%)';
+                    const compBg = compareMode === 'NFHS' ? '#f97316' : '#10b981';
+                    const compBorder = compareMode === 'NFHS' ? '#ea580c' : '#059669';
+
+                    chartDatasets.push({
+                        label: compLabel,
+                        data: sortedComp,
+                        backgroundColor: compBg,
+                        borderColor: compBorder,
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        maxBarThickness: 45
+                    });
+                }
             }
 
             mainChartInst = new Chart(ctx, {
