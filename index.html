@@ -1236,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', phInit);
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
                 <div>
                     <h2 id="zdTrendTitle" class="text-lg font-bold text-slate-800 tracking-tight">Zero-dose children (estimated)</h2>
-                    <p id="zdTrendSub" class="text-xs font-medium text-slate-400 mt-1">Penta-1 target minus Penta-1 doses, worked out for each district and added up (HMIS)</p>
+                    <p id="zdTrendSub" class="text-xs font-medium text-slate-400 mt-1">Penta-1 target minus Penta-1 doses for the whole area shown: India or the state (HMIS)</p>
                 </div>
                 <div class="inline-flex rounded-xl border border-slate-300 overflow-hidden shadow-sm md:ml-auto" role="group" aria-label="Financial or calendar year">
                     <button id="zdTrendFY" type="button" onclick="setZdTrendMode('FY')" aria-pressed="true" class="view-btn active px-4 py-2.5 text-xs font-bold">Financial year</button>
@@ -4445,17 +4445,18 @@ document.addEventListener('DOMContentLoaded', phInit);
             return (v && v !== 'ALL' && (allIndicators.includes(v) || dropoutOf(v))) ? v : 'FIC';
         }
         // ============================================================
-        // ZERO-DOSE CHILDREN (estimated) = Penta-1 target - Penta-1 doses, worked out per district (never below 0) and
-        // added up, so extra doses in one district never hide children missed in another. HMIS only.
+        // ZERO-DOSE CHILDREN (estimated) = Penta-1 target - Penta-1 doses of the same level: India total = India target - India
+        // doses, a state = its target - its doses, a district = its target - its doses (shown as 0 when doses are above the target).
+        // So it always equals the Target and Doses columns shown beside it. HMIS only.
         //   The period is the one chosen in the filter strip (FY / CY / Custom), the same as the map's target and doses:
         //   target = each financial year's annual target x its months / 12.
         // ============================================================
         const ZD_IND = 'Penta-1';
         function zdKey(d) { return d.State + '||' + d.District; }
-        function zdSum(m, keys) {
-            let z = 0, any = false;
-            keys.forEach(k => { const e = m.get(k); if (e && e.has && e.t > 0) { z += Math.max(0, e.t - e.v); any = true; } });
-            return any ? Math.round(z) : null;
+        function zdSum(m, keys) {         // keys = the districts of one level (India, a state or a district)
+            let t = 0, v = 0, any = false;
+            keys.forEach(k => { const e = m.get(k); if (!e) return; t += e.t; v += e.v; if (e.has) any = true; });
+            return any && t > 0 ? Math.round(Math.max(0, t - v)) : null;
         }
         function zdFY(rows) {             // rows of the selected period (getCurrentYearData)
             const m = new Map();
@@ -4591,14 +4592,13 @@ document.addEventListener('DOMContentLoaded', phInit);
                 mapTableSortKey = c.measureKey; mapTableSort = { col: 'cov', dir: dro ? -1 : 1 };
             }
             const cols = nf ? ['name', 'cov'] : (c.zdOn ? ['name', 'c1', 'c2', 'cov', 'zd'] : ['name', 'c1', 'c2', 'cov']);
-            if (c.repOn && !nf) cols.push('rep');
             if (!cols.includes(mapTableSort.col)) mapTableSort = { col: 'cov', dir: dro ? -1 : 1 };
             const { col, dir } = mapTableSort;
             const names = { name: c.inState ? 'District' : 'State / UT', c1: dro ? dro.a : 'Target', c2: dro ? dro.b : 'Doses',
-                            cov: nf ? 'NFHS-6 %' : dro ? 'Dropout %' : 'Cov. %', zd: 'Zero-dose', rep: 'Rep. %' };
+                            cov: nf ? 'NFHS-6 %' : dro ? 'Dropout %' : 'Cov. %', zd: 'Zero-dose' };
             const widths = cols.length === 2 ? [64, 36] : cols.length === 6 ? [22, 18, 18, 13, 15, 14] : cols.length === 5 ? (c.zdOn ? [25, 20, 20, 15, 20] : [31, 20, 20, 15, 14]) : [37, 22, 21, 20];
             el.classList.toggle('wide', cols.length >= 6);
-            const val = it => col === 'name' ? it.name : col === 'zd' ? (it.zd === undefined ? null : it.zd) : col === 'rep' ? (it.rep ? parseFloat(it.rep.pct.toFixed(1)) : null) : (it.stat ? it.stat[col] : null);
+            const val = it => col === 'name' ? it.name : col === 'zd' ? (it.zd === undefined ? null : it.zd) : (it.stat ? it.stat[col] : null);
             const list = mapItems.map((it, i) => ({ it, i })).sort((a, b) => {
                 const va = val(a.it), vb = val(b.it);
                 if ((va === null || va === undefined) && (vb === null || vb === undefined)) return a.it.name.localeCompare(b.it.name);
@@ -4608,22 +4608,22 @@ document.addEventListener('DOMContentLoaded', phInit);
                 return (r || a.it.name.localeCompare(b.it.name)) * (r ? dir : 1);
             });
             const covCell = s => { const b = mapBandOf(s, ind); return s ? '<span class="cov"><span class="map-sw" style="background:' + b.color + '"></span>' + s.cov.toFixed(1) + '</span>' : '<span class="nd">No data</span>'; };
-            const what = { name: 'name', c1: names.c1, c2: names.c2, cov: nf ? 'NFHS-6 value' : dro ? 'dropout' : 'coverage', zd: 'zero-dose', rep: 'reporting %' }[col];
+            const what = { name: 'name', c1: names.c1, c2: names.c2, cov: nf ? 'NFHS-6 value' : dro ? 'dropout' : 'coverage', zd: 'zero-dose' }[col];
             const how = col === 'name' ? (dir > 0 ? 'name, A to Z' : 'name, Z to A') : what + (dir > 0 ? ', lowest first' : ', highest first');
-            const th = k => '<th scope="col"' + (k === 'rep' ? ' title="Facilities that reported their HMIS (Reporting status files), same months"' : '') + ' onclick="mapSortBy(\'' + k + '\')" aria-sort="' + (col === k ? (dir > 0 ? 'ascending' : 'descending') : 'none') + '">'
+            const th = k => '<th scope="col" onclick="mapSortBy(\'' + k + '\')" aria-sort="' + (col === k ? (dir > 0 ? 'ascending' : 'descending') : 'none') + '">'
                 + mapEsc(names[k]) + (col === k ? (dir > 0 ? ' ▲' : ' ▼') : '') + '</th>';
-            const cell = (k, s, zd, rp) => k === 'cov' ? covCell(s) : k === 'zd' ? (zd === null || zd === undefined ? '–' : mapFmt(zd)) : k === 'rep' ? (rp ? rp.pct.toFixed(1) : '–') : (s ? mapFmt(s[k]) : '–');
+            const cell = (k, s, zd) => k === 'cov' ? covCell(s) : k === 'zd' ? (zd === null || zd === undefined ? '–' : mapFmt(zd)) : (s ? mapFmt(s[k]) : '–');
             let body = '<tr class="total"><td title="' + mapEsc(c.totalName) + '">' + mapEsc(c.totalName) + '</td>'
-                + cols.slice(1).map(k => '<td' + (k === 'zd' ? ' class="zd"' : '') + '>' + cell(k, c.total, c.zdTotal, c.repTotal) + '</td>').join('') + '</tr>';
+                + cols.slice(1).map(k => '<td' + (k === 'zd' ? ' class="zd"' : '') + '>' + cell(k, c.total, c.zdTotal) + '</td>').join('') + '</tr>';
             list.forEach(({ it, i }) => {
                 body += '<tr class="row' + (it.click ? ' go' : '') + (i === mapHotI ? ' hot' : '') + '" data-i="' + i + '"' + (it.click ? ' title="Click to open the district map"' : '') + '>'
-                    + '<td title="' + mapEsc(it.name) + '">' + mapEsc(it.name) + '</td>' + cols.slice(1).map(k => '<td>' + cell(k, it.stat, it.zd, it.rep) + '</td>').join('') + '</tr>';
+                    + '<td title="' + mapEsc(it.name) + '">' + mapEsc(it.name) + '</td>' + cols.slice(1).map(k => '<td>' + cell(k, it.stat, it.zd) + '</td>').join('') + '</tr>';
             });
             el.innerHTML = '<div class="map-table-head"><div class="map-table-title">' + mapEsc((c.inState ? 'Districts of ' + c.stateVal : 'States / UTs') + ' · '
                 + (dro ? dro.short + ' dropout' : ind) + (c.src !== 'hmis' ? ', ' + MAP_SRC_NAME[c.src] : '') + ' (' + mapItems.length + ')')
                 + '</div><div class="map-table-sub">Sorted by ' + mapEsc(how) + ' · click a column title to sort' + (c.inState ? '' : ' · click a state to open its map')
                 + (c.zdOn ? '<br>Zero-dose (est.) = Penta-1 target minus doses, ' + mapEsc(c.zdLabel) : '')
-                + (cols.includes('rep') ? '<br>Rep. % = facilities that reported their HMIS, same months (Reporting status files)' : '') + '</div></div>'
+                + '</div></div>'
                 + '<div class="map-table-scroll"><table><colgroup>' + widths.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>'
                 + '<thead><tr>' + cols.map(th).join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
             const tb = el.querySelector('tbody');
@@ -4752,11 +4752,9 @@ document.addEventListener('DOMContentLoaded', phInit);
                 MAP_DATA.units.forEach((u, i) => { if (u.st === stateVal) items.push({ obj: u, name: u.n, rows: by[i] || [], stat: by[i] ? mapStat(by[i], ind) : null, click: null }); });
             }
             if (zdOn) items.forEach(it => { it.zd = it.rows.length ? zdFY(it.rows) : null; });
-            // facilities reporting (HMIS Reporting status files) for the same months: a column in the table and a line in the tooltip
+            // facilities reporting (HMIS Reporting status files) for the same months: a line in the tooltip (not in the table)
             const repOn = !!REPORTING && src !== 'nfhs';
             if (repOn) items.forEach(it => { it.rep = !it.rows.length ? null : inState ? rsPeriodPct(stateVal, it.rows.map(r => r.District)) : rsPeriodPct(it.name, null); });
-            const repAny = repOn && items.some(it => it.rep);
-            const repTotal = repAny ? (inState ? rsPeriodPct(stateVal, null) : rsAdd(items.map(it => it.rep))) : null;
             mapItems = items;
             const svgHtml = mapSvgBuild(items, box, cardW, cardH, { inState, namesOn: mapNamesOn, title: document.getElementById('chartTitle').textContent,
                 fill: it => { const band = mapBandOf(it.stat, ind); return band ? band.color : BAND_NA_COLOR; },
@@ -4768,7 +4766,7 @@ document.addEventListener('DOMContentLoaded', phInit);
             const bset = bandSetFor(ind), counts = bset.map(() => 0); let noData = 0;
             items.forEach(it => { const band = mapBandOf(it.stat, ind); if (band) counts[bset.indexOf(band)]++; else noData++; });
             box.innerHTML = svgHtml + '<div id="mapTip" class="map-tip hidden"></div>' + mapCardHtml(mapCardInfo); phMapReset('map');
-            mapTableCtx = { ind, inState, stateVal, src, dro, zdOn, zdTotal, zdLabel, repOn: repAny, repTotal, total: totStat, totalName: (inState ? stateVal.toUpperCase() : 'INDIA') + ' TOTAL',
+            mapTableCtx = { ind, inState, stateVal, src, dro, zdOn, zdTotal, zdLabel, total: totStat, totalName: (inState ? stateVal.toUpperCase() : 'INDIA') + ' TOTAL',
                             measureKey: src + '|' + ind + '|' + (zdOn ? 'zd' : '') };
             renderMapTable();
             legend.innerHTML = '<span class="text-slate-500">' + (inState ? 'Districts' : 'States / UTs') + ' by '
@@ -6705,7 +6703,7 @@ document.addEventListener('DOMContentLoaded', phInit);
 
             if (zdOn) {
                 ws.addRow([]);
-                const nr = ws.addRow(['Zero-dose (est.) = Penta-1 target minus Penta-1 doses for each district (never below 0), added up, for '
+                const nr = ws.addRow(['Zero-dose (est.) = Penta-1 target minus Penta-1 doses of the same row (India, state or district; 0 when doses are above the target), for '
                     + periodFullName() + '; target = each financial year\'s annual target x its months / 12.']);
                 ws.mergeCells(nr.number, 1, nr.number, ncols);
                 nr.height = 30;
