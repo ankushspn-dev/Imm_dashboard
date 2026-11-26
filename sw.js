@@ -1,6 +1,6 @@
 // Immunization Dashboard - phone app helper (made by the dashboard script; upload it with index.html every month).
 // Keeps a copy of the dashboard on the phone, so it opens without internet, and tells the page when a newer one is uploaded.
-const VERSION = '0aed9b46e301';
+const VERSION = 'c1490449cc87';
 const CACHE = 'imm-dashboard-' + VERSION;
 const FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
