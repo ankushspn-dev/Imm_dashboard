@@ -1,7 +1,8 @@
 // Immunization Dashboard - phone app helper (made by the dashboard script; upload it with index.html every month).
 // Keeps a copy of the dashboard on the phone, so it opens without internet, and tells the page when a newer one is uploaded.
-const VERSION = 'c1490449cc87';
-const CACHE = 'imm-dashboard-' + VERSION;
+const VERSION = '9fda19b97624';
+const APP = 'public';
+const CACHE = 'imm-dashboard-' + APP + '-' + VERSION;
 const FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -14,7 +15,8 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
     e.waitUntil(caches.keys()
-        .then(keys => Promise.all(keys.filter(k => k.startsWith('imm-dashboard-') && k !== CACHE).map(k => caches.delete(k))))
+        .then(keys => Promise.all(keys.filter(k => k !== CACHE && (k.startsWith('imm-dashboard-' + APP + '-')
+                                                     || (APP === 'public' && /^imm-dashboard-[0-9a-f]{12}$/.test(k)))).map(k => caches.delete(k))))
         .then(() => self.clients.claim()));
 });
 function sameFile(a, b) {
