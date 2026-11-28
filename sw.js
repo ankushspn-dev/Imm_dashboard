@@ -1,6 +1,6 @@
 // Immunization Dashboard - phone app helper (made by the dashboard script; upload it with index.html every month).
 // Keeps a copy of the dashboard on the phone, so it opens without internet, and tells the page when a newer one is uploaded.
-const VERSION = '9fda19b97624';
+const VERSION = '85d20490ec49';
 const APP = 'public';
 const CACHE = 'imm-dashboard-' + APP + '-' + VERSION;
 const FILES = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
@@ -19,6 +19,9 @@ self.addEventListener('activate', e => {
                                                      || (APP === 'public' && /^imm-dashboard-[0-9a-f]{12}$/.test(k)))).map(k => caches.delete(k))))
         .then(() => self.clients.claim()));
 });
+function verOf(r) {             // <meta name="app-version"> near the top of the page: changes only when the data changes
+    return r.clone().text().then(t => { const m = /<meta name="app-version" content="([^"]+)"/.exec(t.slice(0, 6000)); return m ? m[1] : null; }).catch(() => null);
+}
 function sameFile(a, b) {
     const ea = a.headers.get('etag'), eb = b.headers.get('etag');
     if (ea && eb) return ea === eb;
@@ -35,9 +38,14 @@ self.addEventListener('fetch', e => {
     if (req.mode === 'navigate') {
         // the dashboard: open the saved copy at once; look for a newer upload in the background
         e.respondWith(caches.open(CACHE).then(c => c.match('./').then(hit => {
+            const keep = hit ? hit.clone() : null;          // the page reads 'hit'; this copy is for the version check
             const net = fetch('./', { cache: 'no-cache' }).then(r => {
-                if (r && r.ok && !(hit && sameFile(hit, r))) return c.put('./', r.clone()).then(() => (hit ? tellPages() : null)).then(() => r);
-                return r;
+                if (!r || !r.ok || (hit && sameFile(hit, r))) return r;
+                if (!hit) return c.put('./', r.clone()).then(() => r);
+                return Promise.all([verOf(keep), verOf(r)]).then(v => {
+                    if (v[0] && v[0] === v[1]) return c.put('./', r.clone()).then(() => r);          // same data, new upload: no message
+                    return c.put('./', r.clone()).then(() => tellPages()).then(() => r);
+                });
             }).catch(() => null);
             if (hit) { e.waitUntil(net); return hit; }
             return net.then(r => r || fetch(req));
